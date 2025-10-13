@@ -1,0 +1,19 @@
+[project]
+name = "tokenizer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Maike Reis", email = "maikerdralcantara@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "nltk>=3.9.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.isort]
+profile = "black"
