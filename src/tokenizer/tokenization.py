@@ -1,9 +1,13 @@
 import re
 from typing import Callable
 
+import nltk
 from nltk.corpus import stopwords
 
 from tokenizer.constants import ADDRESS_TYPE, CUSTOM_STOPWORDS
+
+nltk.download("stopwords")
+
 
 STOPWORDS = set(stopwords.words("portuguese"))
 TOKEN_PATTERN = re.compile(r"\d{5}-\d{3}|S/N|\d+|[A-Za-zÀ-ÿ]+", flags=re.IGNORECASE)
