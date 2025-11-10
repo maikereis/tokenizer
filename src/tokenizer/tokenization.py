@@ -13,6 +13,8 @@ STOPWORDS = set(stopwords.words("portuguese"))
 TOKEN_PATTERN = re.compile(r"\d{5}-\d{3}|S/N|\d+|[A-Za-zÀ-ÿ]+", flags=re.IGNORECASE)
 UFS = ["pa", "ma", "pi", "al", "rs", "go"]
 
+def identity(x):
+    return x
 
 class AddressTokenizer:
     def __init__(self, n: int = 3, pre_processing: Callable[[str], str] = None):
@@ -21,9 +23,7 @@ class AddressTokenizer:
         pre_processing: callable function to preprocess text (e.g., normalize accents)
         """
         self.n = n
-        self.pre_processing = pre_processing or (
-            lambda x: x
-        )  # default: no preprocessing
+        self.pre_processing = pre_processing or identity
 
     def __call__(self, text: str) -> list[str]:
         # 1. Preprocess
