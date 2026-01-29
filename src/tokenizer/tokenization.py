@@ -1,5 +1,6 @@
+from dataclasses import dataclass, asdict
 import re
-from typing import Callable
+from typing import Callable, Dict, List
 
 import nltk
 from nltk.corpus import stopwords
@@ -16,16 +17,54 @@ UFS = ["pa", "ma", "pi", "al", "rs", "go"]
 def identity(x):
     return x
 
+@dataclass(frozen=True)
+class Address:
+    estado: str = ""
+    cep: str = ""
+    rua: str = ""
+    numero: str = ""
+    municipio: str = ""
+    bairro: str = ""
+    referencia: str = ""
+    complemento: str = ""
+    nome: str = ""
+    latitude: str = ""
+    longitude: str = ""
+
 class AddressTokenizer:
-    def __init__(self, n: int = 3, pre_processing: Callable[[str], str] = None):
+    def __init__(
+        self, 
+        n: int = 3, 
+        pre_processing: Callable[[str], str] = None,
+        field_aware: bool = True,
+        prefix_fields: set = None
+    ):
         """
         n: size of weak token substrings
         pre_processing: callable function to preprocess text (e.g., normalize accents)
+        field_aware: if True, prefix tokens with field names
+        prefix_fields: set of field names to prefix (if None, prefix all fields)
         """
         self.n = n
         self.pre_processing = pre_processing or identity
+        self.field_aware = field_aware
+        # Default: prefix only fields prone to collisions
+        self.prefix_fields = prefix_fields or {
+            "estado",
+            "cep",
+            "rua",
+            "numero",
+            "municipio",
+            "bairro",
+            "referencia",
+            "complemento",
+            "nome",
+            "latitude",
+            "longitude",
+        }
 
-    def __call__(self, text: str) -> list[str]:
+    def tokenize_text(self, text: str) -> List[str]:
+        """Core tokenization logic for raw text."""
         # 1. Preprocess
         text_without_accents = self.pre_processing(text)
 
@@ -85,3 +124,41 @@ class AddressTokenizer:
                     weak_tokens.add(token[i : i + self.n])
 
         return list(strong_tokens.union(weak_tokens))
+
+    def tokenize_field(self, field: str, value: str) -> List[str]:
+        """Tokenize a single field value, optionally with field prefix."""
+        if not value:
+            return []
+        
+        base_tokens = self.tokenize_text(str(value))
+        
+        if self.field_aware and field in self.prefix_fields:
+            return [f"{field}:{token}" for token in base_tokens]
+        
+        return base_tokens
+
+    def tokenize_structured(self, address: Address) -> Dict[str, List[str]]:
+        """Tokenize a structured Address object, returning tokens per field."""
+        address_dict = asdict(address) if isinstance(address, Address) else address
+        
+        tokens = []
+
+        for field, value in address_dict.items():
+            if value:
+
+                tokens.extend(self.tokenize_field(field, value))
+
+        return tokens
+
+    def __call__(self, input_data) -> List[str] | Dict[str, List[str]]:
+        """
+        Flexible tokenization:
+        - str: tokenize as free text
+        - Address/dict: tokenize as structured data
+        """
+        if isinstance(input_data, str):
+            return self.tokenize_text(input_data)
+        elif isinstance(input_data, (Address, dict)):
+            return self.tokenize_structured(input_data)
+        else:
+            raise TypeError(f"Unsupported input type: {type(input_data)}")
