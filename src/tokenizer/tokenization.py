@@ -7,7 +7,7 @@ from nltk.corpus import stopwords
 
 from tokenizer.constants import ADDRESS_TYPE, CUSTOM_STOPWORDS
 
-nltk.download("stopwords")
+nltk.download("stopwords", quiet=True)
 
 
 STOPWORDS = set(stopwords.words("portuguese"))
@@ -72,11 +72,11 @@ class AddressTokenizer:
         tokens = TOKEN_PATTERN.findall(text_without_accents)
 
         # 3. Remove stopwords
-        filtered = [t for t in tokens if t not in STOPWORDS]
-        filtered = [t for t in filtered if t not in CUSTOM_STOPWORDS]
+        filtered = [t for t in tokens if t.lower() not in STOPWORDS]
+        filtered = [t for t in filtered if t.lower() not in CUSTOM_STOPWORDS]
 
         # 4. Exception: reinclude "para" if "pará" was in original
-        if "pará" in text.lower() and "para" not in filtered:
+        if "pará" in text.lower() and "para" not in [t.lower() for t in filtered]:
             filtered.append("para")
 
         strong_tokens = set()
@@ -90,18 +90,18 @@ class AddressTokenizer:
             strong_tokens.add(cep_num[:3])
 
         # Numbers
-        numeros = [t for t in filtered if re.fullmatch(r"\d+|sn|s/n", t)]
+        numeros = [t for t in filtered if re.fullmatch(r"\d+|sn|s/n", t, re.IGNORECASE)]
         for num in numeros:
-            strong_tokens.add(num)
+            strong_tokens.add(num.lower())
 
         # State UF
-        if tokens and tokens[0] in UFS and tokens[0] not in strong_tokens:
-            strong_tokens.add(tokens[0])
+        if tokens and tokens[0].lower() in UFS and tokens[0].lower() not in strong_tokens:
+            strong_tokens.add(tokens[0].lower())
 
         # Street type + number
         for i, tok in enumerate(filtered[:-1]):
-            if tok in ADDRESS_TYPE and re.fullmatch(r"\d+|sn", filtered[i + 1]):
-                strong_tokens.add(f"{tok} {filtered[i+1]}")
+            if tok.lower() in ADDRESS_TYPE and re.fullmatch(r"\d+|sn", filtered[i + 1], re.IGNORECASE):
+                strong_tokens.add(f"{tok.lower()} {filtered[i+1].lower()}")
 
         # Highway / KM markers
         for i, tok in enumerate(filtered[:-1]):
@@ -121,13 +121,13 @@ class AddressTokenizer:
         for token in filtered:
             if len(token) >= self.n:
                 for i in range(0, len(token) - self.n + 1, self.n):
-                    weak_tokens.add(token[i : i + self.n])
+                    weak_tokens.add(token[i : i + self.n].lower())
 
         return list(strong_tokens.union(weak_tokens))
 
     def tokenize_field(self, field: str, value: str) -> List[str]:
         """Tokenize a single field value, optionally with field prefix."""
-        if not value:
+        if not value or (isinstance(value, str) and not value.strip()):
             return []
         
         base_tokens = self.tokenize_text(str(value))
@@ -137,24 +137,26 @@ class AddressTokenizer:
         
         return base_tokens
 
-    def tokenize_structured(self, address: Address) -> Dict[str, List[str]]:
-        """Tokenize a structured Address object, returning tokens per field."""
+    def tokenize_structured(self, address: Address) -> List[str]:
+        """Tokenize a structured Address object, returning all tokens as a flat list."""
         address_dict = asdict(address) if isinstance(address, Address) else address
         
-        tokens = []
+        all_tokens = []
 
         for field, value in address_dict.items():
             if value:
+                field_tokens = self.tokenize_field(field, value)
+                all_tokens.extend(field_tokens)
 
-                tokens.extend(self.tokenize_field(field, value))
+        return all_tokens
 
-        return tokens
-
-    def __call__(self, input_data) -> List[str] | Dict[str, List[str]]:
+    def __call__(self, input_data) -> List[str]:
         """
         Flexible tokenization:
         - str: tokenize as free text
         - Address/dict: tokenize as structured data
+        
+        Always returns List[str] for consistency with the inverted index builder.
         """
         if isinstance(input_data, str):
             return self.tokenize_text(input_data)
